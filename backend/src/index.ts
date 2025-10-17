@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { PrismaClient } from '../src/generated/prisma/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
-import { sign } from 'hono/jwt'
+import { sign, verify } from 'hono/jwt'
 
 const app = new Hono<{ // In Hono, we can define types for various things like env, bindings, etc.
   Bindings: {
@@ -9,6 +9,19 @@ const app = new Hono<{ // In Hono, we can define types for various things like e
     JWT_SECRET: string
   }
 }>()
+
+// Here * means all the routes that start with /api/v1/blog/ - put this check (here we have put auth check) before all these routes which stats form /api/v1/blog/ 
+app.use('/api/v1/blog/*', async (c, next) => {
+  // Middleware to check for JWT token in Authorization header
+  const authHeader = c.req.header('Authorization') || ""
+  const response = await verify(authHeader, c.env.JWT_SECRET)
+  if(response.id) {
+    next()
+  } else {
+    c.status(401)
+    return c.json({ error : 'Unauthorized' })
+  }
+})
 
 // Here c in the callback function is the context object
 // It contains request and response objects among other things
@@ -30,7 +43,8 @@ app.post('/api/v1/signUp', async(c) => {
     datasourceUrl : c.env.DATABASE_URL,
   }).$extends(withAccelerate())
   const body = await c.req.json()
-  const user = await prisma.user.create({
+  try {
+    const user = await prisma.user.create({
     data : {
       email : body.email,
       password : body.password
@@ -39,10 +53,31 @@ app.post('/api/v1/signUp', async(c) => {
   const token = await sign({ id : user.id }, c.env.JWT_SECRET)
 
   return c.json({ jwt : token })
+  } catch (error) {
+    c.status(500)
+    return c.json({ error : 'Internal Server Error' })
+  }
+  
 })
 // For sign in
 app.post('/api/v1/signIn', async(c) => {
+  const prisma = new PrismaClient({
+    datasourceUrl : c.env.DATABASE_URL,
+  }).$extends(withAccelerate())
+  const body = await c.req.json()
+  const user = await prisma.user.findUnique({
+    where : {
+      email : body.email,
+      password : body.password
+    }
+  })
+  if(!user) {
+    c.status(403)
+    return c.json({ error : "user not found" })
+  }
 
+  const jwt = await sign({ id : user.id }, c.env.JWT_SECRET)
+  return c.json({ jwt })
 })
 // For create blog
 app.post('/api/v1/blog', async(c) => {
