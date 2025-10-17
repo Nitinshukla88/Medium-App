@@ -7,6 +7,9 @@ const app = new Hono<{ // In Hono, we can define types for various things like e
   Bindings: {
     DATABASE_URL: string,
     JWT_SECRET: string
+  },
+  Variables: {
+    userId: string
   }
 }>()
 
@@ -14,13 +17,18 @@ const app = new Hono<{ // In Hono, we can define types for various things like e
 app.use('/api/v1/blog/*', async (c, next) => {
   // Middleware to check for JWT token in Authorization header
   const authHeader = c.req.header('Authorization') || ""
-  const response = await verify(authHeader, c.env.JWT_SECRET)
-  if(response.id) {
-    next()
-  } else {
+  const token = authHeader.split(' ')[1] // Assuming Bearer token -> This code will split the authHeader into ['Bearer', 'token'] and take the token part
+  if(!token) {
     c.status(401)
     return c.json({ error : 'Unauthorized' })
   }
+  const payload = await verify(token, c.env.JWT_SECRET)
+  if(!payload) {
+    c.status(401)
+    return c.json({ error : 'Unauthorized' })
+  } 
+  c.set('userId', payload.id as string) // Setting userId in context so that we can use it in the route handlers
+  await next()
 })
 
 // Here c in the callback function is the context object
