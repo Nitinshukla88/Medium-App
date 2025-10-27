@@ -20,3 +20,7 @@ app.route('/api/v1/blog', blogRouter);
 
 export default app
  
+// Things we haven't done - 
+
+// 1. Adding pagination to the bulk fetch API of blogs
+// 2. Input validation using Zod 

@@ -3,12 +3,16 @@ import { PrismaClient } from '../generated/prisma/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
 import { verify } from 'hono/jwt'   
 
+
+// Wrap all requests in try catch block to handle errors globally
 type Bindings = {
     DATABASE_URL: string;
     JWT_SECRET: string;
 }
 
-export const blogRouter = new Hono<{ Bindings: Bindings }>();
+export const blogRouter = new Hono<{ Bindings: Bindings , Variables : {
+    userId : string
+}}>();
 
 // Here * means all the routes that start with /api/v1/blog/ - put this check (here we have put auth check) before all these routes which stats form /api/v1/blog/ 
 
@@ -41,11 +45,12 @@ blogRouter.post('/', async(c) => {
     data : {
         title : body.title,
         content : body.content,
-        authorId : c.get('userId') as string // Getting userId from context
+        authorId : c.get('userId') // Getting userId from context
     }
   })
   return c.json({ id : blog.id, message : 'Blog created successfully' })
 })
+
 // For update blog
 blogRouter.put('/', async(c) => {
     const prisma = new PrismaClient({
@@ -65,21 +70,37 @@ blogRouter.put('/', async(c) => {
   return c.json({ id : blog.id, message : 'Blog updated successfully' })
 
 })
-// For get blog
-blogRouter.get('/', async(c) => {
+
+// Return all the blogs(title only) of the logged in user.
+// We should have to add pagination in this route in real world apps to avoid returning too much data at once
+blogRouter.get('/bulk', async(c) => {
     const prisma = new PrismaClient({
     datasourceUrl : c.env.DATABASE_URL,
   }).$extends(withAccelerate())
-  const body = await c.req.json()
+
+  const blogs = await prisma.post.findMany({
+    where: {
+      authorId: c.get('userId') as string
+    },
+    select: {
+      title: true
+    }
+  })
+  return c.json({ blogs })
+})
+
+
+// For get blog
+blogRouter.get('/:id', async(c) => {
+    const prisma = new PrismaClient({
+    datasourceUrl : c.env.DATABASE_URL,
+  }).$extends(withAccelerate())
+  const id = c.req.param('id');
 
   const blog = await prisma.post.findFirst({
     where: {
-      id: body.id
+      id: String(id)
     }
   })
-  return c.json({ id : blog.id })
-})
-
-blogRouter.get('/bulk', async(c) => {
-
+  return c.json({ blog })
 })
