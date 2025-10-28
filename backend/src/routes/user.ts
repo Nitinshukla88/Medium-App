@@ -46,6 +46,26 @@ userRouter.post('/signUp', async(c) => {
   }
   
 })
+
+// For type checking one good method is we can install zod and define the schema for the request body and validate it before processing further. 
+
+// Suppose a schema like this:-
+
+// const signUpSchema = z.object({
+//   email: z.string().email(),
+//   password: z.string().min(6)
+// });
+
+// Now to get the type of the schema we can use - z.infer<typeof signUpSchema>
+// For export type we can use - export type SignUpType = z.infer<typeof signUpSchema> -------> This is called type inference.
+
+// Now using this type any frontend developer can know what fields are required for sign up and what are their types without looking in the backend code. This will help in better type safety and less errors.
+
+// But how this type will be shared with frontend ? Because this type is defined in backend only. 
+// 1. One way is to create a separate package for types only and share it between frontend and backend which we will do in our project. That's the best use of monorepo structure.
+
+// 2. Another way is to use tRPC which automatically shares types between frontend and backend.
+
 // For sign in
 userRouter.post('/api/v1/signIn', async(c) => {
   const prisma = new PrismaClient({
